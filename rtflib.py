@@ -1,6 +1,6 @@
 """
 
-rtflib v. 1.2 Beta
+n v. 1.2 Beta
 author: lambdaviking
 
 Purpose:
@@ -9,8 +9,9 @@ Allows you to write RTF files easily
 Example:
 The example below generates "helloworld.rtf" that says "hello world" in red:
 
-from rtflib import *
-file = RTF("helloworld.rtf")
+from utilities/rtflib import *
+file = RTF("helloworld.rtf")  # added note from Cory Gomez: added in name_or_stream so you can pass a buffer
+							  #	instead of file name
 file.startfile()
 file.addstrict()
 file.addtext("hello world", color=Color(255,0,0))
@@ -37,46 +38,56 @@ Format(bold=False,underline=False,intalicized=False,size=24) -- describes the te
 
 
 """
+from StringIO import StringIO
 
 #define functions that return objects' attributes
 render = lambda x: x.__rtfcode__
 show = lambda x: x.__element__
 
+
 #custom error type "ElementError"
 class ElementError(Exception):
 	pass
 
+
 #color object for input
 class Color:
 	"""color object"""
-	def __init__(self,r=0,g=0,b=0):
+	def __init__(self, r=0, g=0, b=0):
 		self.red = r
 		self.green = g
 		self.blue = b
 
+
 #format (bold, underline, etc.) object for input
 class Format:
 	"""object for format (bold, underline, etc.) of text"""
-	def __init__(self,bold=False,underline=False,italicized=False,size=24):
+
+	def __init__(self, bold=False, underline=False, italicized=False, size=24):
 		self.bold = bold
 		self.underline = underline
 		self.italicized = italicized
 		self.size = size
 
+
 #object for entering a table to the RTF
 class Table:
 	"""table object"""
-	def __init__(self,color=None,format=None):
+
+	def __init__(self, color=None, format=None):
 		self.color = color
 		self.format = format
 		self.rows = []
 		self.__rtfcode__ = ""
 		self.__element__ = "table"
+
 	def addrow(self,row):
 		self.rows.append(row)
 		self.update()
+
 	def iscompatible(self,type):
 		return type == "rtf" or type == "rtfd"
+
 	def update(self):
 		for row in self.rows:
 			self.__rtfcode__ += "\\itap1\\trowd \\taflags1 \\trgaph108\\trleft-108 \\trbrdrt\\brdrnil \\trbrdrl\\brdrnil \\trbrdrr\\brdrnil\n"
@@ -95,45 +106,59 @@ class Table:
 #object for row of a table
 class Row:
 	"""row of a table"""
+
 	def __init__(self):
 		self.cells = []
+
 	def addcell(self,cell,color=False,format=False):
 		self.cells.append(Line(cell,color,format))
+
 
 #object for entering a string of text to the RTF
 class Line:
 	"""line of text object"""
+
 	def __init__(self,text,color=None,format=None):
 		self.format = format
 		self.text = text.replace("\n","\\\n\ ")
 		self.__element__ = "line"
 		self.color = color; self.__cid__ = None
 		self.__rtfcode__ = self.text
+
 	def iscompatible(self,type):
 		return type == "rtf" or type == "rtfd"
+
 
 #object for embedded line of text in the RTF
 class HyperString:
 	"""line of text used in RTF class"""
+
 	def __init__(self,text):
 		self.format = None
 		self.color = None
 		self.__rtfcode__ = text
 
+
 #RTF file class
 class RTF:
 	"""RTF file object"""
-	def __init__(self,name):
-		self.name = name
+
+	def __init__(self, name_or_stream):
+		self.name = name_or_stream if isinstance(name_or_stream, str) else None
+		self.stream = name_or_stream if isinstance(name_or_stream, StringIO) else None
 		self.preelements = []
 		self.colors = [[0,0,0],[255,255,255]]
 		self.elements = []
+
 	def startfile(self):
 		self.preelements.append(HyperString("\\rtf1\\ansi\\ansicpg1252\\cocoartf1038\\cocoasubrtf320"))
+
 	def addstrict(self):
 		self.elements.append(HyperString("\\f0\\fs24\\cf0\n"))
+
 	def addtext(self,text,color=None,format=None):
 		self.elements.append(Line(text,color,format))
+
 	def addelement(self,element):
 		try:
 			if element.iscompatible("rtf"):
@@ -146,8 +171,9 @@ class RTF:
 				raise ElementError("element '" + show(element) + "' incompatible with class 'RTF'")
 		except ZeroDivisionError:
 			raise ElementError("invalid element: '" + repr(element) + "'")
-	def writeout(self):	
-		wf = open(self.name,"w")
+
+	def writeout(self):
+		wf = open(self.name, "w") if self.name else self.stream
 		wf.write("{\n")
 		for preelement in self.preelements:
 			wf.write(render(preelement) + "\n")
@@ -169,4 +195,5 @@ class RTF:
 			if element.format: wf.write("\\fs24 ")
 			if "__cid__" in dir(element): wf.write("\\cf0 \ ")
 		wf.write("}")
-		wf.close()
+		if self.name:
+			wf.close()
